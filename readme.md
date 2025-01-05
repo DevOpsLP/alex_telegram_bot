@@ -93,3 +93,80 @@ Here is an example of what the function should return:
 - Copy repository
 - Install dependencies by doing `npm install`
 - Run the project by doing: `npm run start`
+
+---
+## Supported Messages for the Bot
+
+The bot processes specific types of messages to handle trading signals. These messages must follow the exact format as described below, with only the values (e.g., entry price, targets, stop loss) being customizable. **These messages are case-sensitive**, and any deviation from the format will result in the bot failing to recognize the message.
+
+---
+
+### Short Signal
+
+```plaintext
+🔴 SHORT
+
+#GMT/USDT
+
+Entry : 0.23240 - 0.23442
+
+Targets :
+
+🎯 0.23074
+🎯 0.22584
+🎯 0.22094
+🎯 0.21604
+
+🛑 Stop : 0.24672
+
+Leverage : 10x (isolated)
+
+@AI_tradesbot
+```
+
+### Long Signal
+```
+🟢 Long
+
+#1000XEC/USDT
+
+Entry : 0.024675 - 0.024680
+
+Targets : 
+
+🎯 0.03700
+🎯 0.03710
+🎯 0.03720
+🎯 0.03730
+
+🛑 Stop : 0.03600
+
+Leverage : 10x (Cross)
+
+@AI_tradesbot
+```
+
+### Close Trade Signal
+```
+#GMTUSDT #Short
+Close the Signal
+```
+or
+
+```
+#GMTUSDT #Long
+Close the Signal
+```
+
+
+Key Points to Note
+	1.	Case Sensitivity:
+	•	The bot requires the message to match the exact format (including emojis, capitalization, and punctuation).
+	•	Only the numerical values (e.g., entry prices, targets, stop loss, etc.) should be modified as needed.
+	2.	Structure Consistency:
+	•	The bot parses these messages based on their structure. Any structural changes, such as omitting emojis or reordering fields, will cause the bot to fail in recognizing and processing the signal.
+	3.	Customization:
+	•	The signal details (e.g., #GMT/USDT, Entry, Targets, Stop, Leverage) can be updated with your desired values, but the overall format must remain identical.
+
+By adhering to this format, you ensure that the bot correctly identifies and processes the trading signals.
+
