@@ -60,6 +60,14 @@ export const fetchWalletDetails = async (): Promise<Wallet[]> => {
 };
 ```
 
+You can use this command to insert data in the table:
+
+``` mysql
+INSERT INTO wallets (api_key, api_secret, balance, leverage) VALUES
+('sample_api_key', 'sample_api_secret', 5.00, 30);
+```
+
+
 ### Expected Return Structure
 
 The function should return an array of objects, each adhering to the Wallet type. Each object in the array must include the following properties:
