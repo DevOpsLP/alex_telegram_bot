@@ -97,7 +97,7 @@ export function parseMessage(messageText: string): ParsedMessage | null {
 
     console.error("Incomplete trade signal data. The parsed fields are:", tradeSignal);
     return null;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error parsing message:", error.message);
     return null;
   }

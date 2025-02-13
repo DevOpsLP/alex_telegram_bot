@@ -4,3 +4,7 @@ session.data
 
 test.js
 .vscode
+src/.DS_Store
+push.txt
+/dist
+package-lock.json
