@@ -1,4 +1,4 @@
-import { ParsedMessage, TradeSignal, CloseSignal } from "../../types";
+import { ParsedMessage, TradeSignal, CloseSignal } from "../types";
 
 export function parseMessage(messageText: string): ParsedMessage | null {
   try {

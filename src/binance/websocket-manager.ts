@@ -1,5 +1,5 @@
 import { USDMClient, WebsocketClient } from "binance";
-import { TradeSignal, Wallet } from "../../types";
+import { TradeSignal, Wallet } from "../types";
 
 export async function monitorWalletAndCancelOnFilled(
   wallet: Wallet,

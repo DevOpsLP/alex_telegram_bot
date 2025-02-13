@@ -1,5 +1,5 @@
 import { USDMClient } from "binance";
-import { CloseSignal, Wallet } from "../../types";
+import { CloseSignal, Wallet } from "../types";
 
 export async function handleCloseSignal(signal: CloseSignal, wallet: Wallet): Promise<void> {
   const { pair } = signal;

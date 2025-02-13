@@ -1,6 +1,6 @@
 import mysql from "mysql2/promise";
 import { RowDataPacket } from "mysql2";
-import { Wallet } from "../../types";
+import { Wallet } from "../types";
 export const fetchWalletDetails = async (): Promise<Wallet[]> => {
   const connection = await mysql.createConnection({
     host: "localhost",

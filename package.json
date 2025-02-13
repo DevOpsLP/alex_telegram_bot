@@ -2,7 +2,6 @@
   "name": "alex_telegram_bot",
   "version": "1.0.0",
   "main": "src/index.ts",
-  "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "npm run build && node dist/index.js"
