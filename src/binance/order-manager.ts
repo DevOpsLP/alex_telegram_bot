@@ -26,12 +26,17 @@ export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Pr
 
     if (!lotSizeFilter || !priceFilter) throw new Error(`Missing filters for symbol ${pair}.`);
 
-    const stepSizeDecimals = lotSizeFilter.stepSize.toString().indexOf("1") - lotSizeFilter.stepSize.toString().indexOf(".") - 1;
-    const tickSizeDecimals = priceFilter.tickSize.toString().indexOf("1") - priceFilter.tickSize.toString().indexOf(".") - 1;
+    // Calculate the number of decimal places for stepSize
+    const stepSizeStr = lotSizeFilter.stepSize.toString();
+    const stepSizeDecimals = stepSizeStr.includes(".") ? stepSizeStr.split(".")[1].length : 0;
+
+    // Calculate the number of decimal places for tickSize
+    const tickSizeStr = priceFilter.tickSize.toString();
+    const tickSizeDecimals = tickSizeStr.includes(".") ? tickSizeStr.split(".")[1].length : 0;
 
     const stepSizePrecision = stepSizeDecimals >= 0 ? stepSizeDecimals : 0;
     const tickSizePrecision = tickSizeDecimals >= 0 ? tickSizeDecimals : 0;
-    console.log("Step size", stepSizePrecision, "Price Tick size", tickSizePrecision);
+    console.log("Step size precision:", stepSizePrecision, "Price Tick size precision:", tickSizePrecision);
     // Fetch mark price
     const { markPrice } = await client.getMarkPrice({ symbol: pair });
     const currentPrice = parseFloat(markPrice.toString());
@@ -68,6 +73,23 @@ export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Pr
 
     // Place TAKE_PROFIT orders
     if (targets && targets.length > 0) {
+      console.log("Targets:", targets.length);
+      console.log("Precision: ", stepSizePrecision);
+    
+      // Calculate the base quantity for each TP order
+      const baseQty = parseFloat((marketQty / targets.length).toFixed(stepSizePrecision));
+    
+      // Calculate the total quantity for the first (n-1) TP orders
+      let totalTpQty = 0;
+      for (let i = 0; i < targets.length - 1; i++) {
+        totalTpQty += baseQty;
+        console.log(`Order Quantity for TP${i}: ${baseQty}`);
+      }
+    
+      // Calculate the remaining quantity for the trailing stop order
+      const remainingQty = parseFloat((marketQty - totalTpQty).toFixed(stepSizePrecision));
+    
+      // Place TP orders for the first (n-1) targets
       for (let i = 0; i < targets.length - 1; i++) {
         const tpOrder = await client.submitNewOrder({
           symbol: pair,
@@ -75,12 +97,12 @@ export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Pr
           type: "TAKE_PROFIT",
           stopPrice: parseFloat(targets[i].toFixed(tickSizePrecision)),
           price: parseFloat(targets[i].toFixed(tickSizePrecision)),
-          quantity: parseFloat((marketQty / targets.length).toFixed(stepSizePrecision)),
+          quantity: baseQty,
           timeInForce: "GTC",
         });
         console.log(`Take-profit order placed @ ${targets[i]}`, tpOrder.orderId);
       }
-
+    
       // Place TRAILING_STOP_MARKET order for the last TP level
       const trailingStopOrder = await client.submitNewOrder({
         symbol: pair,
@@ -88,7 +110,7 @@ export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Pr
         type: "TRAILING_STOP_MARKET",
         activationPrice: parseFloat(targets[targets.length - 1].toFixed(tickSizePrecision)),
         callbackRate: 2, // 2% trailing
-        quantity: parseFloat((marketQty / targets.length).toFixed(stepSizePrecision)),
+        quantity: remainingQty,
       });
       console.log(`Trailing Stop placed (activation @ ${targets[targets.length - 1]}):`, trailingStopOrder.orderId);
     }

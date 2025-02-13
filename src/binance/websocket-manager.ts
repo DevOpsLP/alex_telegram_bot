@@ -66,7 +66,7 @@ export async function monitorWalletAndCancelOnFilled(
         }else if (originalOrderType === "TAKE_PROFIT") {
           console.log(`Take profit filled for ${symbol}. Adjusting stop loss...`);
           
-          const filledPrice = parseFloat(order.price);
+          const filledPrice = parseFloat(order.originalPrice);
           const tpIndex = tradeSignal.targets.findIndex(tp => tp === filledPrice);
         
           if (tpIndex === -1) {
@@ -95,16 +95,21 @@ export async function monitorWalletAndCancelOnFilled(
             const openOrders = await client.getAllOpenOrders({ symbol });
             // Filter for the STOP_MARKET orders (stop loss orders)
             const slOrders = openOrders.filter(o => o.type === "STOP_MARKET");
-        
             for (const slOrder of slOrders) {
+              console.log(slOrder)
               // Modify the existing SL order with the new price instead of cancelling it
-              await client.modifyOrder({
+              await client.cancelOrder({
                 orderId: slOrder.orderId,
                 symbol,
-                side: slOrder.side,
-                price: newStopLossPrice
               });
-              console.log(`Modified SL order ${slOrder.orderId} to new price ${newStopLossPrice}`);
+              const stopOrder = await client.submitNewOrder({
+                symbol: symbol,
+                side: slOrder.side,
+                type: "STOP_MARKET",
+                stopPrice: newStopLossPrice,
+                closePosition: "true",
+              });
+              console.log(`New order SL order ${JSON.stringify(stopOrder, null, 2)} to new price ${newStopLossPrice}`);
             }
         
           } catch (error: any) {
