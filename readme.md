@@ -1,3 +1,16 @@
+# Telegram Bot for Alex
+
+## How to run
+- Clone the repository
+- Install dependencies `npm install`
+- Install `pm2` library using `sudo npm i pm2 -g` for Linux or `npm i pm2 -g` for Windows
+- Run this command: `pm2 start npm --name "telegram-bot" -- start`
+
+You can check the logs using `pm2 logs` or clean them by using `pm2 flush`, in case of any error you can check the `pm2 logs` file to further debug what's happening
+
+
+---
+
 ## Getting Started: Telegram API Credentials
 
 To use this system, you need to set up your Telegram API credentials and obtain your target channel ID. Follow the steps below:
