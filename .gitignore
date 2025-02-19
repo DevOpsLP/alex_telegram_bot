@@ -8,3 +8,4 @@ src/.DS_Store
 push.txt
 /dist
 package-lock.json
+src/test.ts

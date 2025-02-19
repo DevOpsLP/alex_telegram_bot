@@ -1,8 +1,9 @@
 import { USDMClient, WebsocketClient } from "binance";
-import { TradeSignal, Wallet } from "../types";
+import { PlacedOrder, TradeSignal, Wallet } from "../types";
 
 export async function monitorWalletAndCancelOnFilled(
   wallet: Wallet,
+  placedOrders: PlacedOrder[],
   tradeSignal: TradeSignal
 ): Promise<void> {
   const { API_KEY, API_SECRET } = wallet;
@@ -26,7 +27,6 @@ export async function monitorWalletAndCancelOnFilled(
     wsClient.subscribeUsdFuturesUserDataStream();
 
     wsClient.on("formattedMessage", async (data: any) => {
-      console.log("Received WebSocket message:", data);
 
       if (
         data.eventType === "ORDER_TRADE_UPDATE" && // Check if it's an ORDER_TRADE_UPDATE event
@@ -34,7 +34,7 @@ export async function monitorWalletAndCancelOnFilled(
         data.order.orderStatus === "FILLED" // Check if Order Status is FILLED
       ) {
         const order = data.order; // Extract order details
-        const { symbol, originalOrderType, orderId } = order;
+        const { symbol, originalOrderType, orderId, clientOrderId } = order;
 
         // Handle STOP_MARKET or TRAILING_STOP_MARKET being filled
         if (originalOrderType === "STOP_MARKET" || originalOrderType === "TRAILING_STOP_MARKET") {
@@ -66,29 +66,44 @@ export async function monitorWalletAndCancelOnFilled(
         }else if (originalOrderType === "TAKE_PROFIT") {
           console.log(`Take profit filled for ${symbol}. Adjusting stop loss...`);
           
-          const filledPrice = parseFloat(order.originalPrice);
-          const tpIndex = tradeSignal.targets.findIndex(tp => tp === filledPrice);
-        
-          if (tpIndex === -1) {
-            console.log(`Filled price ${filledPrice} not in TP targets. Ignoring.`);
+          // Find which placed TP/trailing order just got filled
+          const matchedOrder = placedOrders.find((p) => p.clientOrderId === clientOrderId);
+
+          if (!matchedOrder) {
+            console.log(`No matching placedOrder found for clientOrderId: ${clientOrderId}. Ignoring.`);
             return;
           }
         
-          // Determine new SL price based on TP index
+          // The filled price is the one we originally used to place this TP
+          const filledPrice = matchedOrder.origPrice;
+          console.log(`Filled price from matchedOrder: ${filledPrice}`);
+
+          // Determine index of the filled price among the tradeSignal's targets
+          const tpIndex = tradeSignal.targets.findIndex(tp => tp === filledPrice);
+
+          if (tpIndex === -1) {
+            console.log(`Filled price ${filledPrice} not in tradeSignal.targets. Ignoring.`);
+            return;
+          }
+
+          // Calculate new SL price:
           let newStopLossPrice: number;
-          if (tpIndex === 1) { // TP2 filled: Move SL to entry
+
+          if (tpIndex === 0) {
+            // TP1 => move SL to entry
             newStopLossPrice = tradeSignal.entry[0];
-          } else if (tpIndex >= 2) { // TP3+ filled: Move SL to TP[n-2]
-            const targetIndex = tpIndex - 2;
-            if (targetIndex >= tradeSignal.targets.length) {
-              console.log(`No TP target at index ${targetIndex}. Ignoring.`);
+          } else {
+            // If TP2 or higher => move SL to the previous TP
+            // (Example: if TP2 is filled => move SL to TP1, if TP3 filled => move SL to TP2, etc.)
+            const targetIndex = tpIndex - 1;
+            if (targetIndex < 0 || targetIndex >= tradeSignal.targets.length) {
+              console.log(`No valid TP target at index ${targetIndex}. Ignoring.`);
               return;
             }
             newStopLossPrice = tradeSignal.targets[targetIndex];
-          } else { // TP1 filled: No adjustment needed
-            console.log(`TP${tpIndex + 1} filled. No SL adjustment required.`);
-            return;
           }
+
+          console.log(`SL will be updated to ${newStopLossPrice}`);
         
           try {
             // Get all open orders
@@ -96,7 +111,6 @@ export async function monitorWalletAndCancelOnFilled(
             // Filter for the STOP_MARKET orders (stop loss orders)
             const slOrders = openOrders.filter(o => o.type === "STOP_MARKET");
             for (const slOrder of slOrders) {
-              console.log(slOrder)
               // Modify the existing SL order with the new price instead of cancelling it
               await client.cancelOrder({
                 orderId: slOrder.orderId,

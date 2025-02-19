@@ -23,3 +23,8 @@ export interface Wallet {
   balance: number; // in USDT
   leverage: number; // 10, 20, etc.
 }
+
+export interface PlacedOrder {
+  clientOrderId: string;
+  origPrice: number;
+}

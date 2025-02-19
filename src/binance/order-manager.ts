@@ -1,5 +1,5 @@
 import { USDMClient } from "binance";
-import { TradeSignal, Wallet } from "../types";
+import { PlacedOrder, TradeSignal, Wallet } from "../types";
 import { monitorWalletAndCancelOnFilled } from "./websocket-manager";
 
 export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Promise<void> {
@@ -70,6 +70,7 @@ export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Pr
       closePosition: "true",
     });
     console.log("Stop-loss order placed:", stopOrder.orderId);
+    const placedOrders: PlacedOrder[] = [];
 
     // Place TAKE_PROFIT orders
     if (targets && targets.length > 0) {
@@ -88,18 +89,25 @@ export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Pr
     
       // Calculate the remaining quantity for the trailing stop order
       const remainingQty = parseFloat((marketQty - totalTpQty).toFixed(stepSizePrecision));
-    
+
       // Place TP orders for the first (n-1) targets
       for (let i = 0; i < targets.length - 1; i++) {
+        const tpPrice = parseFloat(targets[i].toFixed(tickSizePrecision));
+
         const tpOrder = await client.submitNewOrder({
           symbol: pair,
           side: oppositeSide,
           type: "TAKE_PROFIT",
-          stopPrice: parseFloat(targets[i].toFixed(tickSizePrecision)),
+          stopPrice: tpPrice,
           price: parseFloat(targets[i].toFixed(tickSizePrecision)),
           quantity: baseQty,
           timeInForce: "GTC",
         });
+        placedOrders.push({
+          clientOrderId: tpOrder.clientOrderId,
+          origPrice: tpPrice,
+        });
+  
         console.log(`Take-profit order placed @ ${targets[i]}`, tpOrder.orderId);
       }
     
@@ -109,14 +117,21 @@ export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Pr
         side: oppositeSide,
         type: "TRAILING_STOP_MARKET",
         activationPrice: parseFloat(targets[targets.length - 1].toFixed(tickSizePrecision)),
-        callbackRate: 2, // 2% trailing
+        callbackRate: 0.2, // 2% trailing
         quantity: remainingQty,
       });
+
+
+      placedOrders.push({
+        clientOrderId: trailingStopOrder.clientOrderId,
+        origPrice: parseFloat(targets[targets.length - 1].toFixed(tickSizePrecision)),
+      });
+
       console.log(`Trailing Stop placed (activation @ ${targets[targets.length - 1]}):`, trailingStopOrder.orderId);
     }
 
     console.log("All orders placed successfully. Opening Websocket connection...");
-    monitorWalletAndCancelOnFilled(wallet, orders);
+    monitorWalletAndCancelOnFilled(wallet, placedOrders, orders);
   } catch (error) {
     console.error("Error placing futures order:", error);
   }
