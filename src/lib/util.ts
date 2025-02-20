@@ -1,4 +1,5 @@
-import { ParsedMessage, TradeSignal, CloseSignal } from "../types";
+import { USDMClient } from "binance";
+import { ParsedMessage, TradeSignal, CloseSignal, BracketData } from "../types";
 
 export function parseMessage(messageText: string): ParsedMessage | null {
   try {
@@ -102,3 +103,45 @@ export function parseMessage(messageText: string): ParsedMessage | null {
     return null;
   }
 }
+
+export async function setLeverageWithValidation(
+  client: USDMClient,
+  pair: string,
+  initialLeverage: number
+): Promise<number> {
+  let leverage = initialLeverage;
+  let attemptCount = 0;
+
+  while (attemptCount < 2) {
+    try {
+      await client.setLeverage({ symbol: pair, leverage });
+      console.log(`Leverage set to ${leverage}x successfully`);
+      return leverage;
+    } catch (error: any) {
+      if (error.code === -4028) {
+        console.log(`Invalid leverage ${leverage}x, fetching valid brackets...`);
+        const bracketData: BracketData[] = await client.getNotionalAndLeverageBrackets({ symbol: pair });
+
+        if (!bracketData?.length || !bracketData[0]?.brackets?.length) {
+          throw new Error("Invalid leverage bracket response structure");
+        }
+
+        const maxInitialLeverage = bracketData[0].brackets[0].initialLeverage;
+
+        if (leverage !== maxInitialLeverage) {
+          console.log(`Retrying with initial leverage ${maxInitialLeverage}x`);
+          leverage = maxInitialLeverage;
+          attemptCount++;
+          continue;
+        }
+
+        throw new Error("Maximum allowed leverage already attempted");
+      }
+
+      throw error;
+    }
+  }
+
+  throw new Error("Failed to set valid leverage after retry");
+}
+

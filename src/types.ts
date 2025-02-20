@@ -28,3 +28,9 @@ export interface PlacedOrder {
   clientOrderId: string;
   origPrice: number;
 }
+
+export interface BracketData {
+  brackets: {
+    initialLeverage: number;
+  }[];
+}

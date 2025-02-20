@@ -1,11 +1,11 @@
 import { USDMClient } from "binance";
 import { PlacedOrder, TradeSignal, Wallet } from "../types";
 import { monitorWalletAndCancelOnFilled } from "./websocket-manager";
+import { setLeverageWithValidation } from "../lib/util";
 
 export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Promise<void> {
   const { pair, direction, entry, targets, stopLoss } = orders;
-  const { API_KEY, API_SECRET, balance, leverage } = wallet;
-
+  let { API_KEY, API_SECRET, balance, leverage } = wallet;
   try {
     // Initialize client
     const client = new USDMClient({
@@ -40,12 +40,13 @@ export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Pr
     // Fetch mark price
     const { markPrice } = await client.getMarkPrice({ symbol: pair });
     const currentPrice = parseFloat(markPrice.toString());
-    await client.setLeverage({ symbol: pair, leverage });
 
-    console.log(`Leverage set correctly for ${pair} x${leverage}`);
+    const finalLeverage = await setLeverageWithValidation(client, pair, leverage);
+
+    console.log(`Leverage set correctly for ${pair} x${finalLeverage}`);
 
     // Calculate quantities
-    const marketQty = parseFloat(((balance * leverage) / currentPrice).toFixed(stepSizePrecision));
+    const marketQty = parseFloat(((balance * finalLeverage) / currentPrice).toFixed(stepSizePrecision));
     const side = direction === "LONG" ? "BUY" : "SELL";
     const oppositeSide = side === "BUY" ? "SELL" : "BUY";
 
@@ -73,9 +74,7 @@ export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Pr
     const placedOrders: PlacedOrder[] = [];
 
     // Place TAKE_PROFIT orders
-    if (targets && targets.length > 0) {
-      console.log("Targets:", targets.length);
-      console.log("Precision: ", stepSizePrecision);
+    if (targets && targets.length > 1) {
     
       // Calculate the base quantity for each TP order
       const baseQty = parseFloat((marketQty / targets.length).toFixed(stepSizePrecision));
@@ -128,6 +127,28 @@ export async function placeFuturesOrder(orders: TradeSignal, wallet: Wallet): Pr
       });
 
       console.log(`Trailing Stop placed (activation @ ${targets[targets.length - 1]}):`, trailingStopOrder.orderId);
+    }else if (targets && targets.length === 1) {
+      // -- Single-target logic: place a TAKE_PROFIT_MARKET order with no quantity, 
+      //    letting it close the position once triggered (similar to STOP_MARKET).
+      const tpPrice = parseFloat(targets[0].toFixed(tickSizePrecision));
+      
+      const singleTpOrder = await client.submitNewOrder({
+        symbol: pair,
+        side: oppositeSide,
+        type: "TAKE_PROFIT_MARKET",
+        stopPrice: tpPrice,
+        closePosition: "true",
+      });
+      
+      placedOrders.push({
+        clientOrderId: singleTpOrder.clientOrderId,
+        origPrice: tpPrice,
+      });
+    
+      console.log(
+        `Single TAKE_PROFIT_MARKET placed @ ${targets[0]}:`,
+        singleTpOrder.orderId
+      );
     }
 
     console.log("All orders placed successfully. Opening Websocket connection...");
